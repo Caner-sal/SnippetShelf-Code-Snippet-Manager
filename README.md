@@ -55,7 +55,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5174](http://localhost:5174) in your browser.
+
+> **Note:** The dev server runs on port **5174** (not the default 5173) to avoid conflicts with other Vite projects running simultaneously. If 5174 is also in use, Vite will automatically increment to the next available port (5175, etc.).
 
 ### Build for production
 
@@ -101,7 +103,7 @@ src/
 │   ├── SnippetDetailModal.tsx # Full snippet view modal
 │   ├── SnippetForm.tsx        # Add / edit form
 │   ├── SnippetList.tsx        # Grid of cards
-│   └── SortSelect.tsx        # Sort order selector
+│   └── SortSelect.tsx         # Sort order selector
 ├── data/
 │   └── sampleSnippets.ts      # 12 built-in example snippets
 ├── hooks/
@@ -138,6 +140,111 @@ src/
 | Detail Modal | Full code block with copy button |
 | Add/Edit Form | Validated form with code editor textarea |
 | Import/Export | Simple JSON backup panel |
+
+---
+
+## Known Issues & Fixes Applied During Development
+
+This section documents problems encountered while building this project and how they were resolved. Useful if you fork this repo or run into the same issues.
+
+---
+
+### 1. `npm create vite@latest` fails on Node.js 18.12.0
+
+**Error:**
+```
+SyntaxError: The requested module 'node:util' does not provide an export named 'styleText'
+```
+
+**Cause:** The latest `create-vite` (v6+) requires Node.js 18.18+ or Node.js 20+. Node.js 18.12.0 is missing the `styleText` export in `node:util`.
+
+**Fix:** Use `create-vite@4` which is compatible with Node.js 18.12.0:
+```bash
+npm create vite@4 . -- --template react-ts
+```
+
+---
+
+### 2. `vite.config.ts` — `test` property TypeScript error
+
+**Cause:** When you import `defineConfig` from `vite`, TypeScript does not know about the `test` property because it belongs to Vitest, not Vite. Without the reference directive, you may see:
+```
+Object literal may only specify known properties, and 'test' does not exist in type 'UserConfig'
+```
+
+**Fix:** Add the Vitest reference directive at the top of `vite.config.ts`:
+```ts
+/// <reference types="vitest" />
+import { defineConfig } from 'vite'
+```
+
+This tells TypeScript to merge Vitest's type augmentations with Vite's config type.
+
+---
+
+### 3. Dev server port conflict — another Vite project already on port 5173
+
+**Symptom:** Running `npm run dev` opens the wrong project in the browser (a different Vite app running on the default port 5173).
+
+**Fix:** Set a custom port in `vite.config.ts`:
+```ts
+server: {
+  port: 5174,
+},
+```
+
+Do **not** add `strictPort: true` (see issue 4 below).
+
+---
+
+### 4. `strictPort: true` crashes the dev server on restart
+
+**Symptom:** After adding `strictPort: true`, restarting the dev server throws:
+```
+Error: Port 5174 is already in use
+```
+This happens because the previous process did not fully release the port before the new one started.
+
+**Fix:** Remove `strictPort: true`. Without it, Vite automatically increments to the next available port (5175, 5176, …) instead of crashing:
+```ts
+server: {
+  port: 5174,   // preferred port — no strictPort
+},
+```
+
+---
+
+### 5. Unused import TypeScript errors breaking the build
+
+**Errors seen during build:**
+```
+error TS6133: 'DEFAULT_PREFERENCES' is declared but its value is never read.
+error TS6133: 'vi' is declared but its value is never read.
+```
+
+**Cause:** `tsconfig.json` has `"noUnusedLocals": true`. Any imported symbol that is never used in a file will fail the build.
+
+**Fix:** Remove the unused imports:
+- Removed `DEFAULT_PREFERENCES` from `src/App.tsx`
+- Removed `vi` from `src/tests/storage.test.ts`
+
+**Lesson:** Always run `npm run build` (not just `npm run dev`) before committing. `tsc` catches these errors; the dev server does not.
+
+---
+
+### 6. `.claude/settings.local.json` accidentally staged for commit
+
+**Cause:** The `.claude/settings.local.json` file is created automatically by Claude Code and contains machine-specific tool permissions. It should never be committed to a public repository.
+
+**Fix:**
+1. Add the path to `.gitignore`:
+   ```
+   .claude/settings.local.json
+   ```
+2. Remove it from the git index:
+   ```bash
+   git rm --cached -f .claude/settings.local.json
+   ```
 
 ---
 
